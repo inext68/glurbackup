@@ -1,0 +1,623 @@
+<?php
+
+namespace PluginGlurbackup;
+
+use CommonDBTM;
+use Dropdown;
+use Html;
+use Session;
+
+class Server extends CommonDBTM
+{
+    public const PLUGIN_RIGHT = 'plugin_glurbackup';
+
+    public static $rightname = self::PLUGIN_RIGHT;
+
+    public static function getTable($classname = null): string
+    {
+        return 'glpi_plugin_glurbackup_servers';
+    }
+
+    public static function getSearchURL($full = true): string
+    {
+        global $CFG_GLPI;
+
+        $path = '/plugins/glurbackup/front/server.php';
+
+        if ($full) {
+            return $CFG_GLPI['root_doc'] . $path;
+        }
+
+        return $path;
+    }
+
+    public static function getFormURL($full = true): string
+    {
+        global $CFG_GLPI;
+
+        $path = '/plugins/glurbackup/front/server.form.php';
+
+        if ($full) {
+            return $CFG_GLPI['root_doc'] . $path;
+        }
+
+        return $path;
+    }
+
+    public static function getTypeName($nb = 0): string
+    {
+        return _n('URBackup server', 'URBackup servers', $nb, 'glurbackup');
+    }
+
+    public static function canAdminRead(): bool
+    {
+        return Session::haveRight(self::PLUGIN_RIGHT, READ) || Session::haveRight('config', UPDATE);
+    }
+
+    public static function canAdminUpdate(): bool
+    {
+        return Session::haveRight(self::PLUGIN_RIGHT, UPDATE) || Session::haveRight('config', UPDATE);
+    }
+
+    public static function canView(): bool
+    {
+        return self::canAdminRead();
+    }
+
+    public static function canCreate(): bool
+    {
+        return self::canAdminUpdate();
+    }
+
+    public function canUpdateItem(): bool
+    {
+        return self::canAdminUpdate();
+    }
+
+    public function canDeleteItem(): bool
+    {
+        return self::canAdminUpdate();
+    }
+
+    public static function denyIfNoAdminRead(): void
+    {
+        if (!self::canAdminRead()) {
+            Html::displayRightError();
+        }
+    }
+
+    public static function denyIfNoAdminUpdate(): void
+    {
+        if (!self::canAdminUpdate()) {
+            Html::displayRightError();
+        }
+    }
+
+    public static function h(?string $value): string
+    {
+        $value = $value ?? '';
+        return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+
+    public static function getMenuName(): string
+    {
+        return __('URBackup servers', 'glurbackup');
+    }
+
+    public static function getMenuContent(): array
+    {
+        if (!self::canAdminRead()) {
+            return [];
+        }
+
+        return [
+            'title' => self::getMenuName(),
+            'page'  => '/plugins/glurbackup/front/server.php',
+            'icon'  => 'fas fa-server',
+        ];
+    }
+
+    public function getRights($interface = 'central'): array
+    {
+        return parent::getRights($interface);
+    }
+
+    public function prepareInputForAdd($input)
+    {
+        return $this->prepareInput((array) $input, true);
+    }
+
+    public function prepareInputForUpdate($input)
+    {
+        return $this->prepareInput((array) $input, false);
+    }
+
+    private function prepareInput(array $input, bool $isAdd): array
+    {
+        $input['name']         = trim((string) ($input['name'] ?? ''));
+        $input['ip_address']   = trim((string) ($input['ip_address'] ?? ''));
+        $input['port']         = max(1, (int) ($input['port'] ?? 55414));
+        $input['version']      = UrbackupApiFactory::normalize((string) ($input['version'] ?? '2.5'));
+        $input['protocol']     = (($input['protocol'] ?? 'http') === 'https') ? 'https' : 'http';
+        $input['ignore_ssl']   = isset($input['ignore_ssl']) ? 1 : 0;
+        $input['is_default']   = isset($input['is_default']) ? 1 : 0;
+        $input['is_recursive'] = isset($input['is_recursive']) ? 1 : 0;
+        $input['entities_id']  = (int) ($input['entities_id'] ?? 0);
+        $input['locations_id'] = (int) ($input['locations_id'] ?? 0);
+        $input['date_mod']     = date('Y-m-d H:i:s');
+
+        if ($isAdd && !isset($input['date_creation'])) {
+            $input['date_creation'] = date('Y-m-d H:i:s');
+        }
+
+        if (isset($input['password']) && trim((string) $input['password']) !== '') {
+            $input['password'] = self::encryptSecret((string) $input['password']);
+        } else {
+            if (!$isAdd && array_key_exists('password', $input)) {
+                unset($input['password']);
+            }
+        }
+
+        return $input;
+    }
+
+    public function post_getFromDB(): void
+    {
+        if (!empty($this->fields['password'])) {
+            $this->fields['password'] = self::decryptSecret((string) $this->fields['password']);
+        }
+    }
+
+    public function post_addItem(): void
+    {
+        $this->normalizeDefaultServer();
+
+        if (class_exists(Log::class)) {
+            Log::record(
+                0,
+                (int) $this->fields['id'],
+                'server.add',
+                'success',
+                __('URBackup server added', 'glurbackup'),
+                [
+                    'name'       => $this->fields['name'] ?? '',
+                    'ip_address' => $this->fields['ip_address'] ?? '',
+                    'port'       => $this->fields['port'] ?? 55414,
+                    'version'    => $this->fields['version'] ?? '2.5',
+                ]
+            );
+        }
+    }
+
+    public function post_updateItem($history = 1): void
+    {
+        $this->normalizeDefaultServer();
+
+        if (class_exists(Log::class)) {
+            Log::record(
+                0,
+                (int) $this->fields['id'],
+                'server.update',
+                'success',
+                __('URBackup server updated', 'glurbackup')
+            );
+        }
+    }
+
+    public function post_deleteItem(): void
+    {
+        if (class_exists(Log::class)) {
+            Log::record(
+                0,
+                (int) $this->fields['id'],
+                'server.delete',
+                'success',
+                __('URBackup server deleted', 'glurbackup')
+            );
+        }
+    }
+
+    private function normalizeDefaultServer(): void
+    {
+        global $DB;
+
+        if ((int) ($this->fields['is_default'] ?? 0) !== 1) {
+            return;
+        }
+
+        $DB->update(self::getTable(), ['is_default' => 0], [
+            'locations_id' => (int) ($this->fields['locations_id'] ?? 0),
+            'entities_id'  => (int) ($this->fields['entities_id'] ?? 0),
+            'id'           => ['<>', (int) ($this->fields['id'] ?? 0)],
+        ]);
+    }
+
+    public function rawSearchOptions(): array
+    {
+        $table    = self::getTable();
+        $itemtype = 'PluginGlurbackupServer';
+
+        return [
+            [
+                'id'       => 'common',
+                'name'     => __('URBackup server', 'glurbackup'),
+            ],
+            [
+                'id'       => '1',
+                'table'    => $table,
+                'field'    => 'id',
+                'name'     => __('ID'),
+                'datatype' => 'number',
+                'itemtype' => $itemtype,
+            ],
+            [
+                'id'       => '2',
+                'table'    => $table,
+                'field'    => 'name',
+                'name'     => __('Name'),
+                'datatype' => 'itemlink',
+                'itemtype' => $itemtype,
+            ],
+            [
+                'id'       => '3',
+                'table'    => $table,
+                'field'    => 'ip_address',
+                'name'     => __('IP address', 'glurbackup'),
+                'datatype' => 'string',
+                'itemtype' => $itemtype,
+            ],
+            [
+                'id'       => '4',
+                'table'    => $table,
+                'field'    => 'port',
+                'name'     => __('Port'),
+                'datatype' => 'number',
+                'itemtype' => $itemtype,
+            ],
+            [
+                'id'        => '5',
+                'table'     => 'glpi_locations',
+                'field'     => 'completename',
+                'linkfield' => 'locations_id',
+                'name'      => __('Location'),
+                'datatype'  => 'dropdown',
+                'itemtype'  => $itemtype,
+            ],
+            [
+                'id'        => '6',
+                'table'     => 'glpi_entities',
+                'field'     => 'completename',
+                'linkfield' => 'entities_id',
+                'name'      => __('Entity'),
+                'datatype'  => 'dropdown',
+                'itemtype'  => $itemtype,
+            ],
+            [
+                'id'       => '7',
+                'table'    => $table,
+                'field'    => 'protocol',
+                'name'     => __('Protocol', 'glurbackup'),
+                'datatype' => 'string',
+                'itemtype' => $itemtype,
+            ],
+            [
+                'id'       => '8',
+                'table'    => $table,
+                'field'    => 'ignore_ssl',
+                'name'     => __('Ignore SSL', 'glurbackup'),
+                'datatype' => 'bool',
+                'itemtype' => $itemtype,
+            ],
+            [
+                'id'       => '9',
+                'table'    => $table,
+                'field'    => 'is_default',
+                'name'     => __('Default', 'glurbackup'),
+                'datatype' => 'bool',
+                'itemtype' => $itemtype,
+            ],
+            [
+                'id'       => '10',
+                'table'    => $table,
+                'field'    => 'comment',
+                'name'     => __('Comments'),
+                'datatype' => 'text',
+                'itemtype' => $itemtype,
+            ],
+            [
+                'id'       => '11',
+                'table'    => $table,
+                'field'    => 'date_mod',
+                'name'     => __('Last update'),
+                'datatype' => 'datetime',
+                'itemtype' => $itemtype,
+            ],
+            [
+                'id'       => '12',
+                'table'    => $table,
+                'field'    => 'date_creation',
+                'name'     => __('Creation date'),
+                'datatype' => 'datetime',
+                'itemtype' => $itemtype,
+            ],
+            [
+                'id'       => '13',
+                'table'    => $table,
+                'field'    => 'username',
+                'name'     => __('Username'),
+                'datatype' => 'string',
+                'itemtype' => $itemtype,
+            ],
+            [
+                'id'       => '14',
+                'table'    => $table,
+                'field'    => 'version',
+                'name'     => __('URBackup server version', 'glurbackup'),
+                'datatype' => 'string',
+                'itemtype' => $itemtype,
+            ],
+        ];
+    }
+
+    public function showForm($ID, $options = []): bool
+    {
+        self::denyIfNoAdminRead();
+
+        $this->initForm($ID, $options);
+
+        if ($ID > 0) {
+            $this->getFromDB($ID);
+        } else {
+            $this->fields['port']     = 55414;
+            $this->fields['protocol'] = 'http';
+            $this->fields['version']  = '2.5';
+        }
+
+        $canedit = self::canAdminUpdate();
+
+        $options['target']  = self::getFormURL();
+        $options['canedit'] = $canedit;
+        $options['colspan'] = 4;
+
+        $this->showFormHeader($options);
+
+        echo Html::hidden('id', [
+            'value' => (int) ($this->fields['id'] ?? 0),
+        ]);
+
+        echo Html::hidden('_glpi_csrf_token', [
+            'value' => Session::getNewCSRFToken(),
+        ]);
+
+        $entity   = (int) ($this->fields['entities_id'] ?? ($_SESSION['glpiactive_entity'] ?? 0));
+        $location = (int) ($this->fields['locations_id'] ?? 0);
+        $protocol = (string) ($this->fields['protocol'] ?? 'http');
+        $version  = UrbackupApiFactory::normalize((string) ($this->fields['version'] ?? '2.5'));
+
+        echo "<tr class='tab_bg_1'>";
+        echo "<td>" . self::h(__('Name')) . "</td>";
+        echo "<td><input type='text' class='form-control' name='name' value='" . self::h((string) ($this->fields['name'] ?? '')) . "' required></td>";
+        echo "<td>" . self::h(__('IP address', 'glurbackup')) . "</td>";
+        echo "<td><input type='text' class='form-control' name='ip_address' value='" . self::h((string) ($this->fields['ip_address'] ?? '')) . "' required></td>";
+        echo "</tr>";
+
+        echo "<tr class='tab_bg_1'>";
+        echo "<td>" . self::h(__('Port')) . "</td>";
+        echo "<td><input type='number' min='1' max='65535' class='form-control' name='port' value='" . (int) ($this->fields['port'] ?? 55414) . "'></td>";
+        echo "<td>" . self::h(__('Protocol', 'glurbackup')) . "</td>";
+        echo "<td><select name='protocol' class='form-select'>";
+        foreach (['http', 'https'] as $p) {
+            echo "<option value='" . self::h($p) . "'" . ($protocol === $p ? ' selected' : '') . ">" . strtoupper($p) . "</option>";
+        }
+        echo "</select></td>";
+        echo "</tr>";
+
+        echo "<tr class='tab_bg_1'>";
+        echo "<td>" . self::h(__('URBackup server version', 'glurbackup')) . "</td>";
+        echo "<td>";
+        echo "<select name='version' class='form-select'>";
+        foreach (UrbackupApiFactory::getChoices() as $key => $label) {
+            $selected = ($version === $key) ? ' selected' : '';
+            echo "<option value='" . self::h($key) . "'" . $selected . ">" . self::h($label) . "</option>";
+        }
+        echo "</select>";
+        echo "</td>";
+        echo "<td>" . self::h(__('Username')) . "</td>";
+        echo "<td><input type='text' class='form-control' name='username' value='" . self::h((string) ($this->fields['username'] ?? '')) . "'></td>";
+        echo "</tr>";
+
+        echo "<tr class='tab_bg_1'>";
+        echo "<td>" . self::h(__('Password')) . "</td>";
+        echo "<td><input type='password' class='form-control' name='password' value='" . self::h((string) ($this->fields['password'] ?? '')) . "'></td>";
+        echo "<td>" . self::h(__('Entity')) . "</td>";
+        echo "<td>";
+        Dropdown::show('Entity', [
+            'name'  => 'entities_id',
+            'value' => $entity,
+        ]);
+        echo "</td>";
+        echo "</tr>";
+
+        echo "<tr class='tab_bg_1'>";
+        echo "<td>" . self::h(__('Location')) . "</td>";
+        echo "<td>";
+        Dropdown::show('Location', [
+            'name'  => 'locations_id',
+            'value' => $location,
+        ]);
+        echo "</td>";
+        echo "<td>" . self::h(__('Options')) . "</td>";
+        echo "<td>";
+        echo "<label class='me-4'><input type='checkbox' name='ignore_ssl' value='1'" . ((int) ($this->fields['ignore_ssl'] ?? 0) === 1 ? ' checked' : '') . "> " . self::h(__('Ignore SSL', 'glurbackup')) . "</label>";
+        echo "<label class='me-4'><input type='checkbox' name='is_default' value='1'" . ((int) ($this->fields['is_default'] ?? 0) === 1 ? ' checked' : '') . "> " . self::h(__('Default', 'glurbackup')) . "</label>";
+        echo "<label><input type='checkbox' name='is_recursive' value='1'" . ((int) ($this->fields['is_recursive'] ?? 0) === 1 ? ' checked' : '') . "> " . self::h(__('Recursive on child entities', 'glurbackup')) . "</label>";
+        echo "</td>";
+        echo "</tr>";
+
+        echo "<tr class='tab_bg_1'>";
+        echo "<td>" . self::h(__('Comments')) . "</td>";
+        echo "<td colspan='3'><textarea name='comment' class='form-control' rows='4'>" . self::h((string) ($this->fields['comment'] ?? '')) . "</textarea></td>";
+        echo "</tr>";
+
+        echo "<tr>";
+        echo "<td colspan='4' class='center'>";
+
+        if ($canedit) {
+            if ((int) ($this->fields['id'] ?? 0) > 0) {
+                echo "<button type='submit' name='update' value='1' class='btn btn-primary me-2'>";
+                echo self::h(__('Save'));
+                echo "</button>";
+
+                echo "<button type='submit' name='delete' value='1' class='btn btn-danger' ";
+                echo "onclick='return confirm(\"" . addslashes(__('Are you sure?')) . "\")'>";
+                echo self::h(__('Delete'));
+                echo "</button>";
+            } else {
+                echo "<button type='submit' name='add' value='1' class='btn btn-primary'>";
+                echo self::h(__('Add'));
+                echo "</button>";
+            }
+        }
+
+        echo "</td>";
+        echo "</tr>";
+
+        echo "</table>";
+
+        if ((int) ($this->fields['id'] ?? 0) > 0) {
+            $this->showLinkedComputersSection((int) $this->fields['id']);
+        }
+
+        echo "</form>";
+
+        return true;
+    }
+
+    private function showLinkedComputersSection(int $serverId): void
+    {
+        global $CFG_GLPI;
+
+        $rows = ComputerServer::getLinkedComputersForServer($serverId);
+
+        echo "<div class='spaced'>";
+        echo "<table class='tab_cadre_fixe'>";
+        echo "<tr><th colspan='5'>" . self::h(__('Linked computers', 'glurbackup')) . "</th></tr>";
+        echo "<tr>";
+        echo "<th>" . self::h(__('Computer')) . "</th>";
+        echo "<th>" . self::h(__('IP address', 'glurbackup')) . "</th>";
+        echo "<th>" . self::h(__('URBackup client version', 'glurbackup')) . "</th>";
+        echo "<th>" . self::h(__('Last file backup', 'glurbackup')) . "</th>";
+        echo "<th>" . self::h(__('Last image backup', 'glurbackup')) . "</th>";
+        echo "</tr>";
+
+        if ($rows === []) {
+            echo "<tr class='tab_bg_1'>";
+            echo "<td colspan='5' class='center'>" . self::h(__('No computers linked to this server.', 'glurbackup')) . "</td>";
+            echo "</tr>";
+        } else {
+            foreach ($rows as $row) {
+                $computerId   = (int) ($row['computers_id'] ?? 0);
+                $computerName = (string) ($row['name'] ?? '');
+
+                if ($computerId > 0 && $computerName !== '') {
+                    $computerUrl  = $CFG_GLPI['root_doc'] . '/front/computer.form.php?id=' . $computerId;
+                    $computerLink = "<a href='" . self::h($computerUrl) . "'>" . self::h($computerName) . "</a>";
+                } else {
+                    $computerLink = self::h($computerName);
+                }
+
+                echo "<tr class='tab_bg_1'>";
+                echo "<td>" . $computerLink . "</td>";
+                echo "<td>" . self::h((string) $row['ip_address']) . "</td>";
+                echo "<td>" . self::h((string) $row['client_version']) . "</td>";
+                echo "<td>" . self::h((string) $row['last_file_backup']) . "</td>";
+                echo "<td>" . self::h((string) $row['last_image_backup']) . "</td>";
+                echo "</tr>";
+            }
+        }
+
+        echo "</table>";
+        echo "</div>";
+    }
+
+    private static function encryptSecret(string $plain): string
+    {
+        if ($plain === '') {
+            return '';
+        }
+
+        if (!function_exists('openssl_encrypt')) {
+            return base64_encode($plain);
+        }
+
+        $key = hash('sha256', self::getCryptoKey(), true);
+        $iv  = random_bytes(16);
+
+        $cipher = openssl_encrypt(
+            $plain,
+            'AES-256-CBC',
+            $key,
+            OPENSSL_RAW_DATA,
+            $iv
+        );
+
+        if ($cipher === false) {
+            return base64_encode($plain);
+        }
+
+        return base64_encode($iv . $cipher);
+    }
+
+    private static function decryptSecret(string $encoded): string
+    {
+        if ($encoded === '') {
+            return '';
+        }
+
+        $raw = base64_decode($encoded, true);
+        if ($raw === false) {
+            return '';
+        }
+
+        if (!function_exists('openssl_decrypt')) {
+            return $raw;
+        }
+
+        if (strlen($raw) < 17) {
+            return $raw;
+        }
+
+        $iv     = substr($raw, 0, 16);
+        $cipher = substr($raw, 16);
+        $key    = hash('sha256', self::getCryptoKey(), true);
+
+        $plain = openssl_decrypt(
+            $cipher,
+            'AES-256-CBC',
+            $key,
+            OPENSSL_RAW_DATA,
+            $iv
+        );
+
+        return $plain === false ? '' : $plain;
+    }
+
+    private static function getCryptoKey(): string
+    {
+        if (defined('GLPIKEY')) {
+            return (string) GLPIKEY;
+        }
+
+        if (defined('GLPI_CONFIG_DIR')) {
+            return 'glurbackup|' . GLPI_CONFIG_DIR;
+        }
+
+        return 'glurbackup|fallback-key';
+    }
+}
+
+// Wrapper legacy globale compatibile con front/server.php e Search::show()
+if (!class_exists('PluginGlurbackupServer', false)) {
+    class_alias(__NAMESPACE__ . '\\Server', 'PluginGlurbackupServer');
+}
+

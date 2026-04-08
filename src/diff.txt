@@ -1,0 +1,900 @@
+57c57,63
+<             $session = $this->loginAndGetSession($baseUrl, $username, $password, $ignoreSsl, $result['connection']);
+---
+>             $session = $this->loginAndGetSession(
+>                 $baseUrl,
+>                 $username,
+>                 $password,
+>                 $ignoreSsl,
+>                 $result['connection']
+>             );
+64c70,75
+<             $clients = $this->fetchStatusClients($baseUrl, $session['ses'], $ignoreSsl, $result['connection']);
+---
+>             $clients = $this->fetchStatusClients(
+>                 $baseUrl,
+>                 $session['ses'],
+>                 $ignoreSsl,
+>                 $result['connection']
+>             );
+94c105,118
+<         $result['default_dirs']             = $this->fetchClientDefaultDirs($baseUrl, $session['ses'], $clientId, $ignoreSsl);
+---
+>         $result['default_dirs']             = $this->fetchClientDefaultDirs(
+>             $baseUrl,
+>             $session['ses'],
+>             $clientId,
+>             $ignoreSsl
+>         );
+> 
+>         $result['recent_backups'] = $this->fetchRecentBackups(
+>             $baseUrl,
+>             $session['ses'],
+>             $clientId,
+>             $ignoreSsl,
+>             $result['connection']
+>         );
+96d119
+<         $result['recent_backups'] = $this->fetchRecentBackups($baseUrl, $session['ses'], $clientId, $ignoreSsl, $result['connection']);
+101c124,130
+<         $result['recent_logs'] = $this->getRecentLogsBySession($baseUrl, $session['ses'], $clientId, $ignoreSsl, 10);
+---
+>         $result['recent_logs'] = $this->getRecentLogsBySession(
+>             $baseUrl,
+>             $session['ses'],
+>             $clientId,
+>             $ignoreSsl,
+>             10
+>         );
+123c152,159
+<             $session = $this->loginAndGetSession($baseUrl, $username, $password, $ignoreSsl, $connection);
+---
+>             $session = $this->loginAndGetSession(
+>                 $baseUrl,
+>                 $username,
+>                 $password,
+>                 $ignoreSsl,
+>                 $connection
+>             );
+> 
+142c178,184
+<             $clients = $this->fetchStatusClients($baseUrl, $session['ses'], $ignoreSsl, $connection);
+---
+>             $clients = $this->fetchStatusClients(
+>                 $baseUrl,
+>                 $session['ses'],
+>                 $ignoreSsl,
+>                 $connection
+>             );
+> 
+179c221
+<     public function runClientAction(array $server, string $computerName, string $actionKey): array
+---
+> public function runClientAction(array $server, string $computerName, string $actionKey): array
+186,192c228,233
+<         $connection = $this->buildInitialConnectionDebug($baseUrl, $username, $ignoreSsl);
+< 
+<         $actionMap = [
+<             'backup_incr_file'  => 'start_incr_file_backup',
+<             'backup_full_file'  => 'start_full_file_backup',
+<             'backup_incr_image' => 'start_incr_image_backup',
+<             'backup_full_image' => 'start_full_image_backup',
+---
+>         // mapping corretto secondo wrapper ufficiale UrBackup
+>         $typeMap = [
+>             'backup_incr_file'  => 'incr_file',
+>             'backup_full_file'  => 'full_file',
+>             'backup_incr_image' => 'incr_image',
+>             'backup_full_image' => 'full_image',
+195,202c236
+<         $legacyProgressMap = [
+<             'backup_incr_file'  => 1,
+<             'backup_full_file'  => 2,
+<             'backup_incr_image' => 3,
+<             'backup_full_image' => 4,
+<         ];
+< 
+<         if (!isset($actionMap[$actionKey])) {
+---
+>         if (!isset($typeMap[$actionKey])) {
+208a243,244
+>         $connection = $this->buildInitialConnectionDebug($baseUrl, $username, $ignoreSsl);
+> 
+210c246,253
+<             $session = $this->loginAndGetSession($baseUrl, $username, $password, $ignoreSsl, $connection);
+---
+>             $session = $this->loginAndGetSession(
+>                 $baseUrl,
+>                 $username,
+>                 $password,
+>                 $ignoreSsl,
+>                 $connection
+>             );
+> 
+218c261,267
+<             $clients = $this->fetchStatusClients($baseUrl, $session['ses'], $ignoreSsl, $connection);
+---
+>             $clients = $this->fetchStatusClients(
+>                 $baseUrl,
+>                 $session['ses'],
+>                 $ignoreSsl,
+>                 $connection
+>             );
+> 
+222,230c271
+<             if ($client === null) {
+<                 $this->writeDebugLog([
+<                     'phase'        => 'runClientAction',
+<                     'result'       => 'client_not_found',
+<                     'action_key'   => $actionKey,
+<                     'computerName' => $computerName,
+<                     'base_url'     => $baseUrl,
+<                 ]);
+< 
+---
+>             if ($client === null || empty($client['id'])) {
+237,258c278,280
+<             $clientId   = (int) ($client['id'] ?? 0);
+<             $apiAction  = $actionMap[$actionKey];
+<             $attemptLog = [];
+< 
+<             // Tentativi moderni / espliciti
+<             $attempts = [
+<                 [
+<                     'strategy' => 'explicit_clientname',
+<                     'action'   => $apiAction,
+<                     'params'   => [
+<                         'clientname' => $computerName,
+<                         'ses'        => $session['ses'],
+<                     ],
+<                 ],
+<                 [
+<                     'strategy' => 'explicit_name',
+<                     'action'   => $apiAction,
+<                     'params'   => [
+<                         'name' => $computerName,
+<                         'ses'  => $session['ses'],
+<                     ],
+<                 ],
+---
+>             $ret = $this->requestJson(
+>                 $baseUrl,
+>                 'start_backup',
+260,265c282,284
+<                     'strategy' => 'explicit_clientid',
+<                     'action'   => $apiAction,
+<                     'params'   => [
+<                         'clientid' => $clientId,
+<                         'ses'      => $session['ses'],
+<                     ],
+---
+>                     'start_client' => (int) $client['id'],
+>                     'start_type'   => $typeMap[$actionKey],
+>                     'ses'          => $session['ses'],
+267c286,288
+<             ];
+---
+>                 'POST',
+>                 $ignoreSsl
+>             );
+269,285c290,295
+<             foreach ($attempts as $attempt) {
+<                 $response = $this->requestDecodedResponse(
+<                     $baseUrl,
+<                     $attempt['action'],
+<                     $attempt['params'],
+<                     'POST',
+<                     $ignoreSsl
+<                 );
+< 
+<                 $attemptLog[] = [
+<                     'strategy'      => $attempt['strategy'],
+<                     'action'        => $attempt['action'],
+<                     'params'        => $this->sanitizeForLog($attempt['params']),
+<                     'http_status'   => (int) ($response['raw']['status'] ?? 0),
+<                     'raw_body'      => (string) ($response['raw']['body'] ?? ''),
+<                     'decoded'       => $response['decoded'],
+<                     'accepted_hint' => $this->isAcceptedActionResponse($response['decoded']),
+---
+>             if (!is_array($ret)
+>                 || !isset($ret['result'][0]['start_ok'])
+>                 || !$ret['result'][0]['start_ok']) {
+>                 return [
+>                     'ok'      => false,
+>                     'message' => __('Il server UrBackup non ha confermato l’avvio del backup.', 'glurbackup'),
+287,314d296
+< 
+<                 if ($this->isAcceptedActionResponse($response['decoded'])) {
+<                     $verified = $this->verifyBackupActivityStarted(
+<                         $baseUrl,
+<                         $session['ses'],
+<                         $ignoreSsl,
+<                         $client,
+<                         $actionKey,
+<                         $connection
+<                     );
+< 
+<                     $this->writeDebugLog([
+<                         'phase'        => 'runClientAction',
+<                         'result'       => $verified ? 'verified_started' : 'accepted_but_not_verified',
+<                         'action_key'   => $actionKey,
+<                         'computerName' => $computerName,
+<                         'client_id'    => $clientId,
+<                         'base_url'     => $baseUrl,
+<                         'attempt_log'  => $attemptLog,
+<                     ]);
+< 
+<                     if ($verified) {
+<                         return [
+<                             'ok'      => true,
+<                             'message' => __('Azione URBackup avviata correttamente.', 'glurbackup'),
+<                         ];
+<                     }
+<                 }
+317,383d298
+<             // Fallback legacy: progress + action numerica
+<             if ($clientId > 0 && isset($legacyProgressMap[$actionKey])) {
+<                 $legacyResponse = $this->requestDecodedResponse(
+<                     $baseUrl,
+<                     'progress',
+<                     [
+<                         'clientid' => $clientId,
+<                         'action'   => $legacyProgressMap[$actionKey],
+<                         'ses'      => $session['ses'],
+<                     ],
+<                     'POST',
+<                     $ignoreSsl
+<                 );
+< 
+<                 $attemptLog[] = [
+<                     'strategy'      => 'legacy_progress_action',
+<                     'action'        => 'progress',
+<                     'params'        => $this->sanitizeForLog([
+<                         'clientid' => $clientId,
+<                         'action'   => $legacyProgressMap[$actionKey],
+<                         'ses'      => $session['ses'],
+<                     ]),
+<                     'http_status'   => (int) ($legacyResponse['raw']['status'] ?? 0),
+<                     'raw_body'      => (string) ($legacyResponse['raw']['body'] ?? ''),
+<                     'decoded'       => $legacyResponse['decoded'],
+<                     'accepted_hint' => $this->isAcceptedActionResponse($legacyResponse['decoded']),
+<                 ];
+< 
+<                 if ($this->isAcceptedActionResponse($legacyResponse['decoded'])) {
+<                     $verified = $this->verifyBackupActivityStarted(
+<                         $baseUrl,
+<                         $session['ses'],
+<                         $ignoreSsl,
+<                         $client,
+<                         $actionKey,
+<                         $connection
+<                     );
+< 
+<                     $this->writeDebugLog([
+<                         'phase'        => 'runClientAction',
+<                         'result'       => $verified ? 'verified_started_legacy' : 'accepted_but_not_verified_legacy',
+<                         'action_key'   => $actionKey,
+<                         'computerName' => $computerName,
+<                         'client_id'    => $clientId,
+<                         'base_url'     => $baseUrl,
+<                         'attempt_log'  => $attemptLog,
+<                     ]);
+< 
+<                     if ($verified) {
+<                         return [
+<                             'ok'      => true,
+<                             'message' => __('Azione URBackup avviata correttamente (fallback legacy).', 'glurbackup'),
+<                         ];
+<                     }
+<                 }
+<             }
+< 
+<             $this->writeDebugLog([
+<                 'phase'        => 'runClientAction',
+<                 'result'       => 'not_confirmed',
+<                 'action_key'   => $actionKey,
+<                 'computerName' => $computerName,
+<                 'client_id'    => $clientId,
+<                 'base_url'     => $baseUrl,
+<                 'attempt_log'  => $attemptLog,
+<             ]);
+< 
+385,386c300,301
+<                 'ok'      => false,
+<                 'message' => __('URBackup non ha confermato l’avvio del backup. Controlla il log debug del plugin.', 'glurbackup'),
+---
+>                 'ok'      => true,
+>                 'message' => __('Backup avviato correttamente su UrBackup.', 'glurbackup'),
+389,397d303
+<             $this->writeDebugLog([
+<                 'phase'        => 'runClientAction',
+<                 'result'       => 'exception',
+<                 'action_key'   => $actionKey,
+<                 'computerName' => $computerName,
+<                 'base_url'     => $baseUrl,
+<                 'exception'    => $e->getMessage(),
+<             ]);
+< 
+400c306
+<                 'message' => __('Errore durante l’avvio dell’azione URBackup.', 'glurbackup') . ' ' . $e->getMessage(),
+---
+>                 'message' => __('Errore durante l’avvio del backup.', 'glurbackup') . ' ' . $e->getMessage(),
+415c321,328
+<             $session = $this->loginAndGetSession($baseUrl, $username, $password, $ignoreSsl, $connection);
+---
+>             $session = $this->loginAndGetSession(
+>                 $baseUrl,
+>                 $username,
+>                 $password,
+>                 $ignoreSsl,
+>                 $connection
+>             );
+> 
+423c336,342
+<             $clients = $this->fetchStatusClients($baseUrl, $session['ses'], $ignoreSsl, $connection);
+---
+>             $clients = $this->fetchStatusClients(
+>                 $baseUrl,
+>                 $session['ses'],
+>                 $ignoreSsl,
+>                 $connection
+>             );
+> 
+490c409,416
+<             $session = $this->loginAndGetSession($baseUrl, $username, $password, $ignoreSsl, $connection);
+---
+>             $session = $this->loginAndGetSession(
+>                 $baseUrl,
+>                 $username,
+>                 $password,
+>                 $ignoreSsl,
+>                 $connection
+>             );
+> 
+498c424,430
+<             $clients = $this->fetchStatusClients($baseUrl, $session['ses'], $ignoreSsl, $connection);
+---
+>             $clients = $this->fetchStatusClients(
+>                 $baseUrl,
+>                 $session['ses'],
+>                 $ignoreSsl,
+>                 $connection
+>             );
+> 
+567c499
+<     protected function verifyBackupActivityStarted(
+---
+> protected function verifyBackupActivityStarted(
+578d509
+<         // Attendo qualche secondo per dare tempo al server di mostrare il job
+618,619c549,551
+<                         // rilevazione generica
+<                         if (strpos($text, 'backup') !== false || strpos($text, 'file') !== false || strpos($text, 'image') !== false) {
+---
+>                         if (strpos($text, 'backup') !== false
+>                             || strpos($text, 'file') !== false
+>                             || strpos($text, 'image') !== false) {
+623d554
+<                         // rilevazione mirata
+669d599
+<         // Alcune API UrBackup rispondono con JSON senza flag standard ma senza errore
+767,768c697,703
+<     protected function getRecentLogsBySession(string $baseUrl, string $ses, int $clientId, bool $ignoreSsl, int $limit = 10): array
+<     {
+---
+>     protected function getRecentLogsBySession(
+>         string $baseUrl,
+>         string $ses,
+>         int $clientId,
+>         bool $ignoreSsl,
+>         int $limit = 10
+>     ): array {
+818c753
+<     protected function loginAndGetSession(
+---
+> protected function loginAndGetSession(
+833c768,771
+<         if (!is_array($saltResponse) || empty($saltResponse['ses']) || empty($saltResponse['salt']) || empty($saltResponse['rnd'])) {
+---
+>         if (!is_array($saltResponse)
+>             || empty($saltResponse['ses'])
+>             || empty($saltResponse['salt'])
+>             || empty($saltResponse['rnd'])) {
+845,846c783,789
+<         $connection['hash_formula'] = 'password_md5_bin = MD5(salt + password); password_md5 = PBKDF2-HMAC-SHA256(password_md5_bin, salt, ' . $pbkdf2Rounds . '); final_password = MD5(rnd + password_md5)';
+<         $connection['login_curl']   = $this->buildLoginCurl($baseUrl, $username, $finalPasswordHex, $ses, $ignoreSsl);
+---
+>         $connection['hash_formula'] =
+>             'password_md5_bin = MD5(salt + password); '
+>             . 'password_md5 = PBKDF2-HMAC-SHA256(password_md5_bin, salt, '
+>             . $pbkdf2Rounds
+>             . '); final_password = MD5(rnd + password_md5)';
+>         $connection['login_curl']   =
+>             $this->buildLoginCurl($baseUrl, $username, $finalPasswordHex, $ses, $ignoreSsl);
+869,871c812
+<         return [
+<             'ses' => $sessionOut,
+<         ];
+---
+>         return ['ses' => $sessionOut];
+874,875c815,820
+<     protected function fetchStatusClients(string $baseUrl, string $ses, bool $ignoreSsl, array &$connection): array
+<     {
+---
+>     protected function fetchStatusClients(
+>         string $baseUrl,
+>         string $ses,
+>         bool $ignoreSsl,
+>         array &$connection
+>     ): array {
+913,1046d857
+<     protected function fetchRecentBackups(
+<         string $baseUrl,
+<         string $ses,
+<         int $clientId,
+<         bool $ignoreSsl,
+<         array &$connection
+<     ): array {
+<         if ($clientId <= 0) {
+<             return [];
+<         }
+< 
+<         $connection['backups_curl'] = $this->buildBackupsCurl($baseUrl, $ses, $clientId, $ignoreSsl);
+< 
+<         $attempts = [
+<             ['clientid' => $clientId, 'ses' => $ses],
+<             ['id' => $clientId, 'ses' => $ses],
+<             ['clientid' => $clientId, 't_clientid' => $clientId, 'ses' => $ses],
+<         ];
+< 
+<         foreach ($attempts as $params) {
+<             try {
+<                 $response = $this->requestJson($baseUrl, 'backups', $params, 'POST', $ignoreSsl);
+<                 if (!is_array($response)) {
+<                     continue;
+<                 }
+< 
+<                 $rows = $this->extractBackupRowsFromResponse($response);
+<                 if ($rows !== []) {
+<                     return array_slice($rows, 0, 7);
+<                 }
+<             } catch (\Throwable $e) {
+<                 // prossimo tentativo
+<             }
+<         }
+< 
+<         return [];
+<     }
+< 
+<     protected function extractBackupRowsFromResponse(array $response): array
+<     {
+<         $rows = [];
+<         $this->collectBackupRowsRecursive($response, $rows);
+< 
+<         usort($rows, static function (array $a, array $b): int {
+<             return ((int) ($b['_sort'] ?? 0)) <=> ((int) ($a['_sort'] ?? 0));
+<         });
+< 
+<         foreach ($rows as &$row) {
+<             unset($row['_sort']);
+<         }
+< 
+<         return $rows;
+<     }
+< 
+<     protected function collectBackupRowsRecursive(array $data, array &$rows): void
+<     {
+<         if ($this->looksLikeBackupRow($data)) {
+<             $rows[] = $this->normalizeBackupRow($data);
+<             return;
+<         }
+< 
+<         foreach ($data as $value) {
+<             if (is_array($value)) {
+<                 $this->collectBackupRowsRecursive($value, $rows);
+<             }
+<         }
+<     }
+< 
+<     protected function looksLikeBackupRow(array $row): bool
+<     {
+<         return array_key_exists('id', $row)
+<             && (
+<                 array_key_exists('backuptime', $row)
+<                 || array_key_exists('size_bytes', $row)
+<                 || array_key_exists('incr', $row)
+<                 || array_key_exists('archived', $row)
+<             );
+<     }
+< 
+<     protected function normalizeBackupRow(array $row): array
+<     {
+<         $backupId   = (int) ($row['id'] ?? 0);
+<         $timestamp  = $this->extractBackupTimestamp($row);
+<         $dateString = $timestamp > 0 ? date('Y-m-d H:i:s', $timestamp) : $this->normalizeLastBackupValue($row['backuptime'] ?? null);
+< 
+<         return [
+<             'date'        => $dateString,
+<             'backup_id'   => $backupId > 0 ? (string) $backupId : '—',
+<             'incremental' => $this->normalizeYesNo($row['incr'] ?? null),
+<             'size'        => $this->formatBytes($row['size_bytes'] ?? null),
+<             'archived'    => $this->normalizeYesNo($row['archived'] ?? null),
+<             '_sort'       => $timestamp,
+<         ];
+<     }
+< 
+<     protected function buildFallbackRecentBackups(array $client): array
+<     {
+<         $rows = [];
+< 
+<         $fileTs = (int) ($client['lastbackup'] ?? 0);
+<         if ($fileTs > 0) {
+<             $rows[] = [
+<                 'date'        => date('Y-m-d H:i:s', $fileTs),
+<                 'backup_id'   => '—',
+<                 'incremental' => '—',
+<                 'size'        => '—',
+<                 'archived'    => '—',
+<                 '_sort'       => $fileTs,
+<             ];
+<         }
+< 
+<         $imgTs = (int) ($client['lastbackup_image'] ?? 0);
+<         if ($imgTs > 0) {
+<             $rows[] = [
+<                 'date'        => date('Y-m-d H:i:s', $imgTs),
+<                 'backup_id'   => '—',
+<                 'incremental' => '—',
+<                 'size'        => '—',
+<                 'archived'    => '—',
+<                 '_sort'       => $imgTs,
+<             ];
+<         }
+< 
+<         usort($rows, static function (array $a, array $b): int {
+<             return ((int) ($b['_sort'] ?? 0)) <=> ((int) ($a['_sort'] ?? 0));
+<         });
+< 
+<         foreach ($rows as &$row) {
+<             unset($row['_sort']);
+<         }
+< 
+<         return array_slice($rows, 0, 7);
+<     }
+< 
+1124,1125c935,940
+<     protected function buildPasswordHash(string $plainPassword, string $salt, string $rnd, int $pbkdf2Rounds): string
+<     {
+---
+>     protected function buildPasswordHash(
+>         string $plainPassword,
+>         string $salt,
+>         string $rnd,
+>         int $pbkdf2Rounds
+>     ): string {
+1143,1409c958,962
+<     protected function findClient(array $clients, string $computerName, ?string $computerIp, ?string &$matchedBy = null): ?array
+<     {
+<         $normalizedName = $this->normalizeString($computerName);
+< 
+<         foreach ($clients as $client) {
+<             $clientName = $this->normalizeString((string) ($client['name'] ?? ''));
+<             if ($normalizedName !== '' && $clientName !== '' && $clientName === $normalizedName) {
+<                 $matchedBy = 'name';
+<                 return $client;
+<             }
+<         }
+< 
+<         $normalizedIp = $this->normalizeIp($computerIp);
+<         if ($normalizedIp !== null) {
+<             foreach ($clients as $client) {
+<                 $clientIp = $this->normalizeIp((string) ($client['ip'] ?? ''));
+<                 if ($clientIp !== null && $clientIp === $normalizedIp) {
+<                     $matchedBy = 'ip';
+<                     return $client;
+<                 }
+<             }
+<         }
+< 
+<         return null;
+<     }
+< 
+<     protected function normalizeClientVersion(array $client): string
+<     {
+<         $value = trim((string) ($client['client_version_string'] ?? ($client['client_version'] ?? '')));
+<         return $value !== '' ? $value : '—';
+<     }
+< 
+<     protected function normalizeOnlineOffline(array $client): string
+<     {
+<         if (!array_key_exists('online', $client)) {
+<             return '—';
+<         }
+< 
+<         return ((bool) $client['online']) ? __('Online', 'glurbackup') : __('Offline', 'glurbackup');
+<     }
+< 
+<     protected function normalizeLastBackupValue($value): string
+<     {
+<         if ($value === '-' || $value === '' || $value === null) {
+<             return '—';
+<         }
+< 
+<         if (is_numeric($value)) {
+<             $ts = (int) $value;
+<             if ($ts <= 0) {
+<                 return '—';
+<             }
+< 
+<             return date('Y-m-d H:i:s', $ts);
+<         }
+< 
+<         return trim((string) $value) !== '' ? (string) $value : '—';
+<     }
+< 
+<     protected function normalizeFileBackupResult(array $client): string
+<     {
+<         if (!array_key_exists('file_ok', $client)) {
+<             return '—';
+<         }
+< 
+<         $ok     = (bool) $client['file_ok'];
+<         $issues = (int) ($client['last_filebackup_issues'] ?? 0);
+< 
+<         if ($ok && $issues <= 0) {
+<             return __('OK', 'glurbackup');
+<         }
+< 
+<         if ($ok && $issues > 0) {
+<             return __('OK with issues', 'glurbackup') . ' (' . $issues . ')';
+<         }
+< 
+<         if (!$ok && $issues > 0) {
+<             return __('Failed', 'glurbackup') . ' (' . $issues . ')';
+<         }
+< 
+<         return __('Failed', 'glurbackup');
+<     }
+< 
+<     protected function normalizeImageBackupResult(array $client): string
+<     {
+<         if (!array_key_exists('image_ok', $client)) {
+<             return '—';
+<         }
+< 
+<         return ((bool) $client['image_ok']) ? __('OK', 'glurbackup') : __('Failed', 'glurbackup');
+<     }
+< 
+<     protected function normalizeCurrentActivities(array $client): string
+<     {
+<         $processes = $client['processes'] ?? null;
+<         if (!is_array($processes) || count($processes) === 0) {
+<             return '—';
+<         }
+< 
+<         $parts = [];
+< 
+<         foreach ($processes as $process) {
+<             if (is_string($process)) {
+<                 $value = trim($process);
+<                 if ($value !== '') {
+<                     $parts[] = $value;
+<                 }
+<                 continue;
+<             }
+< 
+<             if (is_array($process)) {
+<                 foreach (['name', 'action', 'status', 'details', 'msg'] as $key) {
+<                     if (isset($process[$key]) && trim((string) $process[$key]) !== '') {
+<                         $parts[] = trim((string) $process[$key]);
+<                         break;
+<                     }
+<                 }
+<             }
+<         }
+< 
+<         return $parts === [] ? '—' : implode(' | ', $parts);
+<     }
+< 
+<     protected function extractBackupTimestamp(array $row): int
+<     {
+<         $value = $row['backuptime'] ?? null;
+< 
+<         if (is_numeric($value)) {
+<             return (int) $value;
+<         }
+< 
+<         if (is_string($value) && trim($value) !== '') {
+<             $ts = strtotime($value);
+<             return $ts !== false ? (int) $ts : 0;
+<         }
+< 
+<         return 0;
+<     }
+< 
+<     protected function normalizeYesNo($value): string
+<     {
+<         if ($value === null || $value === '') {
+<             return '—';
+<         }
+< 
+<         if (is_string($value)) {
+<             $normalized = mb_strtolower(trim($value));
+<             if (in_array($normalized, ['1', 'true', 'yes', 'y'], true)) {
+<                 return __('Yes');
+<             }
+<             if (in_array($normalized, ['0', 'false', 'no', 'n'], true)) {
+<                 return __('No');
+<             }
+<         }
+< 
+<         return ((bool) $value) ? __('Yes') : __('No');
+<     }
+< 
+<     protected function formatBytes($value): string
+<     {
+<         if (!is_numeric($value)) {
+<             return '—';
+<         }
+< 
+<         $bytes = (float) $value;
+<         if ($bytes <= 0) {
+<             return '0 B';
+<         }
+< 
+<         $units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+<         $power = (int) floor(log($bytes, 1024));
+<         $power = max(0, min($power, count($units) - 1));
+< 
+<         $scaled = $bytes / (1024 ** $power);
+< 
+<         if ($scaled >= 100 || $power === 0) {
+<             return number_format($scaled, 0, '.', '') . ' ' . $units[$power];
+<         }
+< 
+<         if ($scaled >= 10) {
+<             return number_format($scaled, 1, '.', '') . ' ' . $units[$power];
+<         }
+< 
+<         return number_format($scaled, 2, '.', '') . ' ' . $units[$power];
+<     }
+< 
+<     protected function extractLogTime(array $row): string
+<     {
+<         $value = $row['time'] ?? ($row['times'] ?? null);
+< 
+<         if (is_numeric($value)) {
+<             $ts = (int) $value;
+<             return $ts > 0 ? date('Y-m-d H:i:s', $ts) : '—';
+<         }
+< 
+<         $str = trim((string) $value);
+<         return $str !== '' ? $str : '—';
+<     }
+< 
+<     protected function extractLogLevel(array $row): string
+<     {
+<         if (isset($row['level']) && trim((string) $row['level']) !== '') {
+<             return trim((string) $row['level']);
+<         }
+< 
+<         $value = $row['loglevel'] ?? null;
+<         if ($value === null || $value === '') {
+<             return '—';
+<         }
+< 
+<         if (is_numeric($value)) {
+<             return match ((int) $value) {
+<                 0 => 'DEBUG',
+<                 1 => 'INFO',
+<                 2 => 'WARNING',
+<                 3 => 'ERROR',
+<                 default => (string) $value,
+<             };
+<         }
+< 
+<         return trim((string) $value) !== '' ? trim((string) $value) : '—';
+<     }
+< 
+<     protected function extractLogMessage(array $row): string
+<     {
+<         foreach (['msg', 'message', 'data', 'utf8_msg'] as $key) {
+<             if (isset($row[$key]) && trim((string) $row[$key]) !== '') {
+<                 return trim((string) $row[$key]);
+<             }
+<         }
+< 
+<         return '—';
+<     }
+< 
+<     protected function isClientList(array $data): bool
+<     {
+<         if ($data === []) {
+<             return false;
+<         }
+< 
+<         $first = reset($data);
+<         if (!is_array($first)) {
+<             return false;
+<         }
+< 
+<         return isset($first['name'])
+<             || isset($first['client_version_string'])
+<             || isset($first['lastbackup']);
+<     }
+< 
+<     protected function normalizeString(string $value): string
+<     {
+<         return mb_strtolower(trim($value));
+<     }
+< 
+<     protected function normalizeIp(?string $value): ?string
+<     {
+<         $value = trim((string) $value);
+<         if ($value === '' || $value === '-') {
+<             return null;
+<         }
+< 
+<         return $value;
+<     }
+< 
+<     protected function buildInitialConnectionDebug(string $baseUrl, string $username, bool $ignoreSsl): array
+<     {
+---
+>     protected function buildInitialConnectionDebug(
+>         string $baseUrl,
+>         string $username,
+>         bool $ignoreSsl
+>     ): array {
+1416,1417c969,973
+<     protected function buildSaltCurl(string $baseUrl, string $username, bool $ignoreSsl): string
+<     {
+---
+>     protected function buildSaltCurl(
+>         string $baseUrl,
+>         string $username,
+>         bool $ignoreSsl
+>     ): string {
+1427,1428c983,989
+<     protected function buildLoginCurl(string $baseUrl, string $username, string $finalHash, string $ses, bool $ignoreSsl): string
+<     {
+---
+>     protected function buildLoginCurl(
+>         string $baseUrl,
+>         string $username,
+>         string $finalHash,
+>         string $ses,
+>         bool $ignoreSsl
+>     ): string {
+1440,1441c1001,1005
+<     protected function buildStatusCurl(string $baseUrl, string $ses, bool $ignoreSsl): string
+<     {
+---
+>     protected function buildStatusCurl(
+>         string $baseUrl,
+>         string $ses,
+>         bool $ignoreSsl
+>     ): string {
+1451,1452c1015,1020
+<     protected function buildBackupsCurl(string $baseUrl, string $ses, int $clientId, bool $ignoreSsl): string
+<     {
+---
+>     protected function buildBackupsCurl(
+>         string $baseUrl,
+>         string $ses,
+>         int $clientId,
+>         bool $ignoreSsl
+>     ): string {
+1459c1027,1028
+<             . '--data "clientid=' . $clientId . '&ses=' . $this->escapeForShell($ses) . '"';
+---
+>             . '--data "clientid=' . $clientId
+>             . '&ses=' . $this->escapeForShell($ses) . '"';
+1464,1468c1033
+<         return str_replace(
+<             ['\\', '"'],
+<             ['\\\\', '\\"'],
+<             $value
+<         );
+---
+>         return str_replace(['\\', '"'], ['\\\\', '\\"'], $value);
